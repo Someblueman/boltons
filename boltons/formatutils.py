@@ -74,9 +74,8 @@ __all__ = ['DeferredValue', 'get_format_args', 'tokenize_format_str',
            'BaseFormatField']
 
 
-_pos_farg_re = re.compile('({{)|'         # escaped open-brace
-                          '(}})|'         # escaped close-brace
-                          r'({[:!.\[}])')  # anon positional format arg
+_pos_farg_re = re.compile(r'{{|}}|'  # escaped braces
+                          r'{((?:[^{}!:\[]|\[[^\]]*\])*)')  # field name
 
 
 def construct_format_field_str(fname, fspec, conv):
@@ -121,14 +120,15 @@ def infer_positional_format_args(fstr):
     """
     # TODO: memoize
     ret, max_anon = '', 0
-    # look for {: or {! or {. or {[ or {}
+    # Match whole field names so braces inside item lookups stay literal.
     start, end, prev_end = 0, 0, 0
     for match in _pos_farg_re.finditer(fstr):
         start, end, group = match.start(), match.end(), match.group()
         if prev_end < start:
             ret += fstr[prev_end:start]
         prev_end = end
-        if group == '{{' or group == '}}':
+        fname = match.group(1)
+        if fname is None or (fname and fname[0] not in '.['):
             ret += group
             continue
         ret += f'{{{max_anon}{group[1:]}'

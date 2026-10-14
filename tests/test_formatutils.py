@@ -1,6 +1,8 @@
 import re
 from collections import namedtuple
 
+import pytest
+
 from boltons.formatutils import (get_format_args,
                                  split_format_str,
                                  tokenize_format_str,
@@ -21,6 +23,33 @@ def test_pos_infer():
     for i, (tmpl, args, res) in enumerate(_PFATS):
         converted = infer_positional_format_args(tmpl)
         assert converted.format(*args) == res
+
+
+@pytest.mark.parametrize('template, expected, args, kwargs', [
+    ('{[{}]} {}', '{0[{}]} {1}', ({'{}': 'value'}, 'tail'), {}),
+    ('{data[{}]} {}', '{data[{}]} {0}', ('tail',),
+     {'data': {'{}': 'value'}}),
+    ('{0[{}]} {1}', '{0[{}]} {1}', ({'{}': 'value'}, 'tail'), {}),
+    ('[{[{:}]}] {:>{}}', '[{0[{:}]}] {1:>{2}}',
+     ({'{:}': 'value'}, 'end', 5), {}),
+    ('{[first][{!r}]} {!s}', '{0[first][{!r}]} {1!s}',
+     ({'first': {'{!r}': 'value'}}, 'tail'), {}),
+    ('{{{[{}]}}}', '{{{0[{}]}}}', ({'{}': 'value'},), {}),
+    ('[{}] {{[{}]}} {:>{}}', '[{0}] {{[{1}]}} {2:>{3}}',
+     ('first', 'second', 'end', 5), {}),
+])
+def test_pos_infer_item_braces(template, expected, args, kwargs):
+    converted = infer_positional_format_args(template)
+    assert converted == expected
+    assert converted.format(*args, **kwargs) == template.format(*args, **kwargs)
+
+
+def test_tokenize_item_braces():
+    field, literal, following = tokenize_format_str('{[{}]} {}')
+    assert field.fname == '0[{}]'
+    assert field.fstr == '{0[{}]}'
+    assert literal == ' '
+    assert following.fname == '1'
 
 
 _TEST_TMPLS = ["example 1: {hello}",
